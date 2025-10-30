@@ -21,6 +21,6 @@ ENV SYNO_PASS=password
 
 WORKDIR /app
 
-COPY ["Python code/main.py", "/app/"]
+COPY ["src/main.py", "/app/"]
 
 CMD ["gunicorn", "--bind", ":7878", "--workers", "1", "main:app"]
