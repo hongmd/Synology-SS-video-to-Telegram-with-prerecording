@@ -1,18 +1,79 @@
-version: "3"
+version: "3.8"
+
 services:
-  yacht:
-    container_name: VideoSsToTg
+  synology-to-telegram:
+    # Container name for easy reference
+    container_name: synology-to-telegram
+    
+    # Automatically restart the container if it crashes
     restart: unless-stopped
+    
+    # Expose port for webhook from Synology Surveillance Station
     ports:
-      - 7878:7878
+      - "7878:7878"
+    
+    # Load environment variables from .env file
+    env_file:
+      - .env
+    
+    # Use .env file for individual variable overrides (if needed)
     environment:
-      - "TG_CHAT_ID=123456" #id чата, куда отправлять уведомления
-      - "TG_TOKEN=1234567890:AAAAAAbbbbbbCCCC1234567890abcdefgh" #токен бота, полученного от https://t.me/BotFather
-      - "SYNO_IP=192.168.1.1" #ip DSM
-      - "SYNO_PORT=5000" #Порт веб-морды DSM
-      - "SYNO_LOGIN=login" #логин
-      - "SYNO_PASS=password" #пароль
-      - "SYNO_OTP=123" #ОТР код двухфакторной авторизации, если используете. Если нет - удалить.
+      # These will be overridden by .env file if set there
+      # Otherwise, uncomment and set values here
+      # - TG_CHAT_ID=
+      # - TG_TOKEN=
+      # - SYNO_IP=
+      # - SYNO_PORT=5000
+      # - SYNO_LOGIN=
+      # - SYNO_PASS=
+      # - SYNO_OTP=  # Optional: for two-factor authentication
+      - CONFIG_FILE=/bot/syno_cam_config.json
+      - VIDEO_FILE=/bot/temp.mp4
+      - VIDEO_SEGMENT_DURATION=10000  # milliseconds (10 seconds)
+      - WEBHOOK_TIMEOUT=5  # seconds
+      - API_TIMEOUT=30  # seconds
+      - GUNICORN_WORKERS=2
+      - GUNICORN_TIMEOUT=120
+    
+    # Volume mount for storing camera configuration and temp videos
     volumes:
-      - /home/test/:/bot #/home/test/ - меняем на свой путь, где будет хранится конфиг с камерами
-    image: striker72rus/ss_to_tg_video:latest
+      # Change /home/test to your desired path where config will be stored
+      # Format: /host/path:/container/path
+      - /home/test:/bot
+    
+    # Use locally built image instead of Docker Hub
+    # Build image locally: docker build -t synology-to-telegram:latest .
+    # Or uncomment 'image' line below to use Docker Hub
+    # image: striker72rus/ss_to_tg_video:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    # Health check configuration
+    healthcheck:
+      # Check if the webhook endpoint is responding
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7878/webhookcam"]
+      # Check every 30 seconds
+      interval: 30s
+      # Wait up to 10 seconds for response
+      timeout: 10s
+      # Start checking after 10 seconds
+      start_period: 10s
+      # Mark unhealthy after 3 failed checks
+      retries: 3
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Network mode - use bridge (default)
+    # networks:
+    #   - synology-network
+
+# Optional: Define custom network if needed
+# networks:
+#   synology-network:
+#     driver: bridge
